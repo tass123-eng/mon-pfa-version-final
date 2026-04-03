@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact - Smart AgriCom</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <span class="logo-icon">🌾</span>
+                <span class="logo-text">Smart AgriCom</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html" class="nav-link">Accueil</a></li>
+                <li><a href="projets.html" class="nav-link">Projets</a></li>
+                <li><a href="about.html" class="nav-link">Qui sommes-nous</a></li>
+                <li><a href="news.html" class="nav-link">Actualités</a></li>
+                <li><a href="contact.html" class="nav-link active">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section class="contact-header">
+        <h1>Nous Contacter</h1>
+        <p>Envoyez-nous vos questions et vos commentaires</p>
+    </section>
+
+    <section class="contact-container">
+        <div class="contact-info">
+            <h2>Informations de Contact</h2>
+            <div class="info-item">
+                <h4>📧 Email</h4>
+                <p>agriculture4.0&#64;gmail.com</p>
+            </div>
+            <div class="info-item">
+                <h4>📱 Téléphone</h4>
+                <p>+216 27 532 921</p>
+            </div>
+            <div class="info-item">
+                <h4>📍 Adresse</h4>
+                <p>Route de tunis ,cité el ons,<br>Technopole de sfax-3018 sfax <br>Tunisie</p>
+            </div>
+            <div class="info-item">
+                <h4>⏰ Heures</h4>
+                <p>Lundi - Vendredi: 9h00 - 18h00<br>Samedi - Dimanche: Fermé</p>
+            </div>
+        </div>
+
+        <form class="contact-form" onsubmit="sendContact(event)">
+            <div class="form-group">
+                <label for="name">Nom</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="subject">Sujet</label>
+                <input type="text" id="subject" name="subject" required>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" rows="6" required></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Envoyer</button>
+        </form>
+    </section>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <p>&copy; 2026 Smart AgriCom. Tous droits réservés.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦗 Insect Detection System</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .status-card {
+            flex: 1;
+            min-width: 200px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .status-card h3 {
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .status-card .value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-card.green .value {
+            color: #10b981;
+        }
+
+        .status-card.red .value {
+            color: #ef4444;
+        }
+
+        .status-card.blue .value {
+            color: #3b82f6;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-start {
+            background: #10b981;
+        }
+
+        .btn-stop {
+            background: #ef4444;
+        }
+
+        .btn-test {
+            background: #3b82f6;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.running {
+            background: #10b981;
+        }
+
+        .status-indicator.stopped {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .detection-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 5px solid #667eea;
+            animation: slideIn 0.3s;
+        }
+
+        .detection-item.grasshopper {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+
+        .detection-item.other {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .detection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .detection-type {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .detection-type.grasshopper {
+            color: #10b981;
+        }
+
+        .detection-type.other {
+            color: #ef4444;
+        }
+
+        .detection-confidence {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .detection-time {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .led-status {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .led-indicator {
+            flex: 1;
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        .led-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 10px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+        }
+
+        .led-icon.green {
+            background: #10b981;
+            box-shadow: 0 0 20px #10b981;
+        }
+
+        .led-icon.red {
+            background: #ef4444;
+            box-shadow: 0 0 20px #ef4444;
+        }
+
+        .led-icon.off {
+            background: #d1d5db;
+            box-shadow: none;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 400px;
+            animation: slideInRight 0.3s;
+            z-index: 1000;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+            }
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        .notification.success {
+            border-left: 5px solid #10b981;
+        }
+
+        .notification.danger {
+            border-left: 5px solid #ef4444;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 10px;
+        }
+
+        #history {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        #history::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #history::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        #history::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🦗 Real-Time Insect Detection System</h1>
+            <p class="subtitle">Raspberry Pi 4 B+ | AI-Powered Classification</p>
+        </header>
+
+        <div class="status-bar">
+            <div class="status-card blue">
+                <h3>Total Detections</h3>
+                <div class="value" id="total-count">0</div>
+            </div>
+            <div class="status-card green">
+                <h3>🦗 Grasshoppers</h3>
+                <div class="value" id="grasshopper-count">0</div>
+            </div>
+            <div class="status-card red">
+                <h3>⚠️ Other Insects</h3>
+                <div class="value" id="other-count">0</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-start" id="btn-start" onclick="startDetection()">
+                ▶️ Start Detection
+            </button>
+            <button class="btn-stop" id="btn-stop" onclick="stopDetection()" disabled>
+                ⏹️ Stop Detection
+            </button>
+            <button class="btn-test" onclick="testLED('green')">
+                Test Green LED
+            </button>
+            <button class="btn-test" onclick="testLED('red')">
+                Test Red LED
+            </button>
+            <div style="flex: 1"></div>
+            <div>
+                Status: <strong id="status-text">Stopped</strong>
+                <span class="status-indicator stopped" id="status-indicator"></span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="card">
+                <h2>📊 Latest Detection</h2>
+                <div id="latest-detection">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>No detections yet. Start the system to begin monitoring.</p>
+                    </div>
+                </div>
+                
+                <div class="led-status">
+                    <div class="led-indicator">
+                        <div class="led-icon off" id="green-led">🟢</div>
+                        <div><strong>Green LED</strong></div>
+                        <div>Grasshopper</div>
+                    </div>
+                    <div class="led-indicator">
+                        <div class="led-icon off" id="red-led">🔴</div>
+                        <div><strong>Red LED</strong></div>
+                        <div>Other Insects</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📜 Detection History</h2>
+                <div id="history">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📝</div>
+                        <p>History will appear here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+
+        // State
+        let isRunning = false;
+
+        // Connect to server
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            loadStatus();
+            loadHistory();
+        });
+
+        // Listen for new detections
+        socket.on('new_detection', function(data) {
+            console.log('New detection:', data);
+            updateLatestDetection(data);
+            addToHistory(data);
+            updateStats();
+            showNotification(data);
+            flashLED(data.is_grasshopper ? 'green' : 'red');
+        });
+
+        // Listen for status changes
+        socket.on('status_change', function(data) {
+            isRunning = data.running;
+            updateUI();
+        });
+
+        // Load initial status
+        function loadStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    isRunning = data.running;
+                    if (data.last_detection) {
+                        updateLatestDetection(data.last_detection);
+                    }
+                    updateStats();
+                    updateUI();
+                });
+        }
+
+        // Load history
+        function loadHistory() {
+            fetch('/api/history')
+                .then(response => response.json())
+                .then(data => {
+                    const historyDiv = document.getElementById('history');
+                    if (data.length === 0) {
+                        historyDiv.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📝</div>
+                                <p>History will appear here</p>
+                            </div>
+                        `;
+                    } else {
+                        historyDiv.innerHTML = data.map(item => createHistoryItem(item)).join('');
+                    }
+                });
+        }
+
+        // Update statistics
+        function updateStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('total-count').textContent = data.total;
+                    document.getElementById('grasshopper-count').textContent = data.grasshopper;
+                    document.getElementById('other-count').textContent = data.other;
+                });
+        }
+
+        // Start detection
+        function startDetection() {
+            fetch('/api/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.message);
+                });
+        }
+
+        // Stop detection
+        function stopDetection() {
+            fetch('/api/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data.message);
+                });
+        }
+
+        // Test LED
+        function testLED(type) {
+            fetch('/api/test_led', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: type })
+            })
+            .then(response => response.json())
+            .then(data => {
+                flashLED(type);
+                alert(data.message);
+            });
+        }
+
+        // Update UI based on running state
+        function updateUI() {
+            document.getElementById('btn-start').disabled = isRunning;
+            document.getElementById('btn-stop').disabled = !isRunning;
+            document.getElementById('status-text').textContent = isRunning ? 'Running' : 'Stopped';
+            
+            const indicator = document.getElementById('status-indicator');
+            indicator.className = 'status-indicator ' + (isRunning ? 'running' : 'stopped');
+        }
+
+        // Update latest detection display
+        function updateLatestDetection(data) {
+            const className = data.is_grasshopper ? 'grasshopper' : 'other';
+            const html = `
+                <div class="detection-item ${className}">
+                    <div class="detection-header">
+                        <span class="detection-type ${className}">
+                            ${data.is_grasshopper ? '🦗' : '⚠️'} ${data.type}
+                        </span>
+                        <span class="detection-confidence">${data.confidence.toFixed(1)}%</span>
+                    </div>
+                    <div class="detection-time">⏰ ${data.timestamp}</div>
+                </div>
+            `;
+            document.getElementById('latest-detection').innerHTML = html;
+        }
+
+        // Create history item HTML
+        function createHistoryItem(data) {
+            const className = data.is_grasshopper ? 'grasshopper' : 'other';
+            return `
+                <div class="detection-item ${className}">
+                    <div class="detection-header">
+                        <span class="detection-type ${className}">
+                            ${data.is_grasshopper ? '🦗' : '⚠️'} ${data.type}
+                        </span>
+                        <span class="detection-confidence">${data.confidence.toFixed(1)}%</span>
+                    </div>
+                    <div class="detection-time">⏰ ${data.timestamp}</div>
+                </div>
+            `;
+        }
+
+        // Add detection to history
+        function addToHistory(data) {
+            const historyDiv = document.getElementById('history');
+            const isEmpty = historyDiv.querySelector('.empty-state');
+            
+            if (isEmpty) {
+                historyDiv.innerHTML = '';
+            }
+            
+            historyDiv.insertAdjacentHTML('afterbegin', createHistoryItem(data));
+            
+            // Keep only last 50 items in view
+            const items = historyDiv.querySelectorAll('.detection-item');
+            if (items.length > 50) {
+                items[items.length - 1].remove();
+            }
+        }
+
+        // Flash LED indicator
+        function flashLED(color) {
+            const ledId = color + '-led';
+            const led = document.getElementById(ledId);
+            led.classList.remove('off');
+            led.classList.add(color);
+            
+            setTimeout(() => {
+                led.classList.remove(color);
+                led.classList.add('off');
+            }, 3000);
+        }
+
+        // Show notification
+        function showNotification(data) {
+            const notification = document.createElement('div');
+            notification.className = 'notification ' + (data.is_grasshopper ? 'success' : 'danger');
+            notification.innerHTML = `
+                <h3>${data.is_grasshopper ? '🦗 Grasshopper Detected!' : '⚠️ Other Insect Detected!'}</h3>
+                <p><strong>${data.type}</strong> - ${data.confidence.toFixed(1)}% confidence</p>
+                <p><small>${data.timestamp}</small></p>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideInRight 0.3s reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+
+        // Initial load
+        loadStatus();
+        loadHistory();
+    </script>
+</body>
+</html>

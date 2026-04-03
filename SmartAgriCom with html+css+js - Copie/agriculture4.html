@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agriculture 4.0 - Smart AgriCom</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="criquets.css">
+</head>
+<body>
+    <div class="projet-detail-page">
+        <!-- ===== HEADER BACK ===== -->
+        <div class="header-back">
+            <div class="container">
+                <a href="#" class="back-link" onclick="history.back(); return false;">← Retour aux projets</a>
+            </div>
+        </div>
+
+        <!-- ===== PROJECT HEADER ===== -->
+        <div class="projet-header">
+            <div class="container">
+                <h1>Agriculture 4.0</h1>
+                <p>Système intelligent de surveillance et détection des criquets pour l'agriculture de précision</p>
+                <div class="projet-meta">
+                    <span class="meta-item">👨‍🎓 Amal Ansi & Tassnim Ouerghemmi</span>
+                    <span class="meta-item">📅 2025-2026</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== MAIN CONTENT ===== -->
+        <div class="container">
+            <div class="detail-content">
+                <!-- PROJECT IMAGE -->
+                <div class="project-image">
+                    <img src="assets/img/138.jpg" alt="Agriculture 4.0">
+                </div>
+
+                <!-- DASHBOARD -->
+                <div class="dashboard">
+                    <!-- STATISTICS ROW -->
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <div class="stat-label">Total détections</div>
+                            <div class="stat-value">156</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Criquets détectés</div>
+                            <div class="stat-value" style="color: #4caf50;">89</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Autres insectes</div>
+                            <div class="stat-value" style="color: #f13919;">67</div>
+                        </div>
+                    </div>
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="actions-row">
+                        <button class="action-btn btn-start" id="btn-start">
+                            ▶ Démarrer Analyse
+                        </button>
+                        <button class="action-btn btn-stop hidden" id="btn-stop">
+                            ⏹ Arrêter Analyse
+                        </button>
+                        <button class="action-btn btn-test-green" id="btn-test-green">
+                            Tester LED verte
+                        </button>
+                        <button class="action-btn btn-test-red" id="btn-test-red">
+                            Tester LED rouge
+                        </button>
+                    </div>
+
+                    <!-- STATUS BAR -->
+                    <div class="status-bar">
+                        <span class="status-label">Statut:</span>
+                        <span class="status-encours">En cours</span>
+                    </div>
+
+                    <!-- CAMERA SECTION (Hidden by default) -->
+                    <div class="camera-section hidden" id="camera-section">
+                        <h3>Flux de Caméra - Détection en Direct</h3>
+                        <div class="camera-container">
+                            <video id="camera-video" playsinline autoplay></video>
+                            <canvas id="camera-canvas" style="display: none;"></canvas>
+                            <div class="camera-overlay">
+                                <div class="detection-info">
+                                    <p id="detection-status">Initialisation caméra...</p>
+                                    <div class="detection-counter">
+                                        <span>Criquets détectés: <strong id="crickets-count">0</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LATEST MEASUREMENT & HISTORY -->
+                    <div class="content-grid">
+                        <div class="latest-section">
+                            <h3>Dernière Mesure</h3>
+                            <div class="latest-item">
+                                <div class="latest-header">
+                                    <span class="latest-title">Criquet détecté</span>
+                                    <span class="latest-percentage">95%</span>
+                                </div>
+                                <div class="latest-time">14:35</div>
+                                <div class="latest-indicator" style="background-color: #4caf50;"></div>
+                            </div>
+                        </div>
+
+                        <div class="history-section">
+                            <h3>Historique</h3>
+                            <div class="history-list">
+                                <!-- History Item 1 -->
+                                <div class="history-item">
+                                    <div class="history-marker" style="border-left-color: #4caf50;"></div>
+                                    <div class="history-info">
+                                        <div class="history-message">Criquet détecté</div>
+                                        <div class="history-time">14:35</div>
+                                    </div>
+                                    <div class="history-percentage">
+                                        <span class="percentage-value">95%</span>
+                                    </div>
+                                </div>
+
+                                <!-- History Item 2 -->
+                                <div class="history-item">
+                                    <div class="history-marker" style="border-left-color: #ff4400;"></div>
+                                    <div class="history-info">
+                                        <div class="history-message">Autres insectes détectés</div>
+                                        <div class="history-time">14:20</div>
+                                    </div>
+                                    <div class="history-percentage">
+                                        <span class="percentage-value">78%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TECHNOLOGIES SECTION -->
+                    <div class="tech-section">
+                        <h3>Technologies Utilisées</h3>
+                        <div class="tech-badges">
+                            <span class="tech-badge">IoT</span>
+                            <span class="tech-badge">Raspberry Pi</span>
+                            <span class="tech-badge">CNN+YOLOv8</span>
+                            <span class="tech-badge">Dev Web</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FOR CAMERA ERROR -->
+    <div class="modal hidden" id="error-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Accès à la Caméra</h2>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="error-message">Une erreur s'est produite lors de l'accès à la caméra.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-ok" id="btn-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="criquets.js"></script>
+</body>
+</html>
