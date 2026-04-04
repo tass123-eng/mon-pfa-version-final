@@ -176,6 +176,17 @@ body {
     box-shadow: 0 5px 15px rgba(244, 67, 54, 0.3);
 }
 
+.btn-upload-image {
+    background: #5c6bc0;
+    color: white;
+}
+
+.btn-upload-image:hover {
+    background: #3f51b5;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(92, 107, 192, 0.3);
+}
+
 .btn-test-green {
     background: #81c784;
     color: white;
@@ -304,6 +315,48 @@ body {
 .detection-counter strong {
     color: #4caf50;
     font-size: 1.1rem;
+}
+
+/* IMAGE DETECTION SECTION */
+.image-detection-section {
+    background: #f9f9f9;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.image-detection-section h3 {
+    color: #2d5016;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+}
+
+.image-detection-container {
+    max-width: 700px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+}
+
+#uploaded-image-preview {
+    width: 100%;
+    max-height: 420px;
+    object-fit: contain;
+    display: block;
+    background: #f0f0f0;
+}
+
+.image-detection-result {
+    padding: 1rem;
+    border-top: 1px solid #e0e0e0;
+    text-align: center;
+}
+
+.image-detection-result p {
+    font-weight: 600;
+    color: #333;
 }
 
 /* CONTENT GRID */

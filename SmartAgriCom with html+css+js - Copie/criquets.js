@@ -3,7 +3,8 @@
 const appState = {
     isDetectionActive: false,
     stream: null,
-    cricketCount: 0
+    cricketCount: 0,
+    isImageDetectionActive: false
 };
 
 // ===== INITIALIZATION ===== 
@@ -17,6 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeButtons() {
     const btnStart = document.getElementById('btn-start');
     const btnStop = document.getElementById('btn-stop');
+    const btnUploadImage = document.getElementById('btn-upload-image');
+    const imageUploadInput = document.getElementById('image-upload-input');
     const btnTestGreen = document.getElementById('btn-test-green');
     const btnTestRed = document.getElementById('btn-test-red');
     const modalClose = document.getElementById('modal-close');
@@ -28,6 +31,11 @@ function initializeButtons() {
 
     if (btnStop) {
         btnStop.addEventListener('click', stopAnalysis);
+    }
+
+    if (btnUploadImage && imageUploadInput) {
+        btnUploadImage.addEventListener('click', () => imageUploadInput.click());
+        imageUploadInput.addEventListener('change', handleImageUpload);
     }
 
     if (btnTestGreen) {
@@ -51,6 +59,7 @@ function initializeButtons() {
 
 function startAnalysis() {
     appState.isDetectionActive = true;
+    appState.isImageDetectionActive = false;
     
     // Toggle buttons
     document.getElementById('btn-start').classList.add('hidden');
@@ -58,6 +67,7 @@ function startAnalysis() {
     
     // Show camera section
     document.getElementById('camera-section').classList.remove('hidden');
+    document.getElementById('image-detection-section').classList.add('hidden');
     
     // Update detection status
     updateDetectionStatus('Accès à la caméra en cours...');
@@ -85,6 +95,108 @@ function stopAnalysis() {
     // Reset count
     appState.cricketCount = 0;
     document.getElementById('crickets-count').textContent = '0';
+}
+
+function handleImageUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+        return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+        showNotification('Veuillez sélectionner un fichier image valide.', 'danger');
+        event.target.value = '';
+        return;
+    }
+
+    if (appState.isDetectionActive) {
+        stopAnalysis();
+        showNotification('Analyse caméra arrêtée pour lancer la détection sur image.', 'info');
+    }
+
+    appState.isImageDetectionActive = true;
+
+    const imageSection = document.getElementById('image-detection-section');
+    const preview = document.getElementById('uploaded-image-preview');
+    const status = document.getElementById('image-detection-status');
+
+    status.textContent = 'Chargement de l\'image...';
+    imageSection.classList.remove('hidden');
+
+    const reader = new FileReader();
+    reader.onload = function(loadEvent) {
+        preview.src = loadEvent.target.result;
+        status.textContent = 'Analyse en cours...';
+        detectImageWithBackend(file);
+    };
+    reader.onerror = function() {
+        status.textContent = 'Erreur lors de la lecture de l\'image.';
+        showNotification('Impossible de lire le fichier image.', 'danger');
+    };
+
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+async function detectImageWithBackend(file) {
+    const status = document.getElementById('image-detection-status');
+
+    try {
+        const apiCandidates = ['/api/detect-image'];
+
+        let result = null;
+        let lastError = null;
+
+        for (const apiUrl of apiCandidates) {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const contentType = response.headers.get('content-type') || '';
+                const isJson = contentType.includes('application/json');
+                const payload = isJson ? await response.json() : { message: await response.text() };
+
+                if (!response.ok || !payload.success) {
+                    const serverMsg = payload.message || `HTTP ${response.status}`;
+                    throw new Error(`${serverMsg} (${apiUrl})`);
+                }
+
+                result = payload;
+                break;
+            } catch (error) {
+                lastError = error;
+            }
+        }
+
+        if (!result) {
+            throw lastError || new Error('Aucun backend detect-image disponible');
+        }
+
+        if (!appState.isImageDetectionActive) {
+            return;
+        }
+
+        const isCricket = Boolean(result.is_grasshopper);
+        const confidence = Number(result.confidence || 0).toFixed(1);
+        const labelText = isCricket ? 'Criquet detecte' : 'Autres insectes detectes';
+
+        status.textContent = `Resultat: ${labelText} (Confiance: ${confidence}%)`;
+        showNotification(
+            isCricket
+                ? 'Detection terminee: criquet detecte.'
+                : 'Detection terminee: autres insectes detectes.',
+            isCricket ? 'success' : 'info'
+        );
+    } catch (error) {
+        console.error('Erreur detection image:', error);
+        status.textContent = 'Erreur de detection sur image.';
+        showNotification('Echec detection image: ' + error.message, 'danger');
+    }
 }
 
 // ===== CAMERA FUNCTIONS ===== 

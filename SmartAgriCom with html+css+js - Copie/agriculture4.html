@@ -62,6 +62,9 @@
                         <button class="action-btn btn-stop hidden" id="btn-stop">
                             ⏹ Arrêter Analyse
                         </button>
+                        <button class="action-btn btn-upload-image" id="btn-upload-image">
+                            🖼 Importer Image
+                        </button>
                         <button class="action-btn btn-test-green" id="btn-test-green">
                             Tester LED verte
                         </button>
@@ -69,6 +72,7 @@
                             Tester LED rouge
                         </button>
                     </div>
+                    <input type="file" id="image-upload-input" accept="image/*" class="hidden">
 
                     <!-- STATUS BAR -->
                     <div class="status-bar">
@@ -89,6 +93,17 @@
                                         <span>Criquets détectés: <strong id="crickets-count">0</strong></span>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- IMAGE DETECTION SECTION (Hidden by default) -->
+                    <div class="image-detection-section hidden" id="image-detection-section">
+                        <h3>Détection sur Image Importée</h3>
+                        <div class="image-detection-container">
+                            <img id="uploaded-image-preview" alt="Image importée pour analyse">
+                            <div class="image-detection-result">
+                                <p id="image-detection-status">Aucune image importée.</p>
                             </div>
                         </div>
                     </div>

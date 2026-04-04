@@ -18,12 +18,12 @@ FLASK_URL = "http://localhost:5000"
 
 # Try to import YOLO - DISABLED for speed (ultralytics takes too long to load on Pi)
 YOLO_AVAILABLE = False
-# try:
-#     from ultralytics import YOLO
-#     YOLO_AVAILABLE = True
-# except ImportError:
-#     YOLO_AVAILABLE = False
-#     print("⚠️ YOLO not installed. Install with: pip3 install ultralytics")
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError:
+    YOLO_AVAILABLE = False
+    print("⚠️ YOLO not installed. Install with: pip3 install ultralytics")
 
 class SimpleInsectDetector:
     """
