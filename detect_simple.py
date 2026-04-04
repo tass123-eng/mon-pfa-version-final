@@ -14,7 +14,7 @@ from datetime import datetime
 MODEL_PATH = "models/yolo_pretrained.pt"
 TARGET_CLASS = "grasshopper"
 CONFIDENCE_THRESHOLD = 0.5
-FLASK_URL = "http://localhost:5000"
+FLASK_URL = "http://localhost:4200"
 
 # Try to import YOLO - DISABLED for speed (ultralytics takes too long to load on Pi)
 YOLO_AVAILABLE = False
@@ -108,29 +108,70 @@ class SimpleInsectDetector:
         # Combine masks
         mask = cv2.bitwise_or(mask_green, mask_brown)
         
+        total_pixels = image.shape[0] * image.shape[1]
+        if total_pixels <= 0:
+            return None, 0.0
+
+        color_pixels = cv2.countNonZero(mask)
+        color_percentage = (color_pixels / total_pixels) * 100
+
         # Find contours
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if len(contours) > 0:
-            # Get largest contour
-            largest_contour = max(contours, key=cv2.contourArea)
-            area = cv2.contourArea(largest_contour)
-            
-            # If area is significant, consider it an insect
-            if area > 500:  # Minimum area threshold
-                # Analyze shape to determine if grasshopper
-                x, y, w, h = cv2.boundingRect(largest_contour)
-                aspect_ratio = w / float(h) if h > 0 else 0
-                
-                # Grasshoppers typically have elongated shape (aspect ratio > 1.5)
-                if aspect_ratio > 1.5:
-                    confidence = min(0.95, area / 10000)  # Higher confidence for larger area
-                    return "grasshopper", confidence
-                else:
-                    confidence = min(0.85, area / 10000)
-                    return "other_insect", confidence
-        
-        return None, 0.0
+        if len(contours) == 0:
+            return None, 0.0
+
+        largest_contour = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(largest_contour)
+        if area < 500:
+            return None, 0.0
+
+        x, y, w, h = cv2.boundingRect(largest_contour)
+        if w <= 0 or h <= 0:
+            return None, 0.0
+
+        elongation_ratio = max(w / float(h), h / float(w))
+        area_percentage = (area / total_pixels) * 100
+
+        confidence = 0.30
+        grasshopper_indicators = 0
+        non_grasshopper_indicators = 0
+
+        if elongation_ratio > 1.5:
+            confidence += 0.25
+            grasshopper_indicators += 1
+        elif elongation_ratio > 1.25:
+            confidence += 0.10
+            grasshopper_indicators += 1
+        elif elongation_ratio < 1.05:
+            confidence -= 0.15
+            non_grasshopper_indicators += 1
+
+        if 10 < color_percentage < 50:
+            confidence += 0.20
+            grasshopper_indicators += 1
+        elif color_percentage > 70:
+            confidence -= 0.15
+            non_grasshopper_indicators += 1
+
+        if 10 < area_percentage < 70:
+            confidence += 0.10
+            grasshopper_indicators += 1
+
+        perimeter = cv2.arcLength(largest_contour, True)
+        if perimeter > 0:
+            circularity = 4 * np.pi * area / (perimeter * perimeter)
+            if 0.1 < circularity < 0.4:
+                confidence += 0.15
+                grasshopper_indicators += 1
+            elif circularity > 0.6:
+                confidence -= 0.2
+                non_grasshopper_indicators += 1
+
+        if elongation_ratio > 1.35 and confidence >= 0.6 and grasshopper_indicators >= 2:
+            return "grasshopper", min(0.92, confidence)
+
+        other_conf = min(0.82, max(0.45, 0.52 + (non_grasshopper_indicators * 0.08)))
+        return "other_insect", other_conf
     
     def detect(self, image=None):
         """

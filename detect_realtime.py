@@ -35,7 +35,7 @@ class Config:
     MODEL_PATH = "/home/pi/pfa/models/yolo_best.pt"
     BACKUP_MODEL = "/home/pi/pfa/models/cnn_pest_best.h5"
     
-    FLASK_URL = "http://localhost:5000"
+    FLASK_URL = os.getenv("FLASK_URL", "http://localhost:4200")
     DETECTION_API = f"{FLASK_URL}/api/detection"
     
     TARGET_CLASS = "Grasshopper"
@@ -117,6 +117,64 @@ class RealTimeDetector:
             return None
         
         return frame
+
+    def verify_grasshopper_with_heuristic(self, frame):
+        """Second-pass shape/color guardrail to reduce false positive grasshopper alerts."""
+        try:
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+            lower_green = np.array([30, 40, 40])
+            upper_green = np.array([90, 255, 255])
+            mask_green = cv2.inRange(hsv, lower_green, upper_green)
+
+            lower_brown = np.array([10, 40, 40])
+            upper_brown = np.array([30, 255, 200])
+            mask_brown = cv2.inRange(hsv, lower_brown, upper_brown)
+
+            lower_yellow = np.array([20, 40, 100])
+            upper_yellow = np.array([40, 255, 255])
+            mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
+
+            mask = cv2.bitwise_or(mask_green, mask_brown)
+            mask = cv2.bitwise_or(mask, mask_yellow)
+
+            total_pixels = frame.shape[0] * frame.shape[1]
+            if total_pixels <= 0:
+                return False, 0.0
+
+            color_pixels = cv2.countNonZero(mask)
+            color_percentage = (color_pixels / total_pixels) * 100
+
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                return False, 0.0
+
+            largest = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(largest)
+            if area < 500:
+                return False, 0.0
+
+            x, y, w, h = cv2.boundingRect(largest)
+            if w <= 0 or h <= 0:
+                return False, 0.0
+
+            elongation = max(w / float(h), h / float(w))
+            score = 0.0
+
+            if elongation > 1.35:
+                score += 0.45
+            if 8 < color_percentage < 55:
+                score += 0.30
+
+            perimeter = cv2.arcLength(largest, True)
+            if perimeter > 0:
+                circularity = 4 * np.pi * area / (perimeter * perimeter)
+                if 0.08 < circularity < 0.45:
+                    score += 0.25
+
+            return score >= 0.6, score
+        except Exception:
+            return False, 0.0
     
     def detect(self, frame):
         """Run detection on frame"""
@@ -137,11 +195,25 @@ class RealTimeDetector:
                 top1_idx = result.probs.top1
                 confidence = float(result.probs.top1conf) * 100
                 class_name = result.names[top1_idx]
+
+                is_target = class_name.lower() == Config.TARGET_CLASS.lower()
+                if is_target:
+                    heuristic_ok, heuristic_score = self.verify_grasshopper_with_heuristic(frame)
+                    if not heuristic_ok:
+                        # Keep a valid detection event but downgrade to non-grasshopper.
+                        adjusted_conf = max(72.0, min(89.0, confidence * 0.80))
+                        return {
+                            'class': 'other_insect',
+                            'confidence': adjusted_conf,
+                            'is_grasshopper': False,
+                            'raw_class': class_name,
+                            'guardrail': f'heuristic_reject_{heuristic_score:.2f}'
+                        }
                 
                 return {
                     'class': class_name,
                     'confidence': confidence,
-                    'is_grasshopper': class_name.lower() == Config.TARGET_CLASS.lower()
+                    'is_grasshopper': is_target
                 }
             
             return None
@@ -152,13 +224,16 @@ class RealTimeDetector:
     def send_to_server(self, detection):
         """Send detection to Flask server"""
         try:
-            # Send via local function call to app.py
-            from app import add_detection
-            add_detection(
-                insect_type=detection['class'],
-                confidence=detection['confidence']
-            )
-            return True
+            payload = {
+                'type': detection['class'],
+                'confidence': detection['confidence'],
+                'timestamp': datetime.now().isoformat()
+            }
+            response = requests.post(Config.DETECTION_API, json=payload, timeout=2)
+            if response.status_code == 200:
+                return True
+            print(f"⚠️ Server returned status {response.status_code}")
+            return False
         except Exception as e:
             print(f"⚠️ Could not send to server: {e}")
             return False

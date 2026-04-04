@@ -57,9 +57,9 @@ CORS(app)  # Autorise les requêtes cross-origin si besoin
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # GPIO Pin Configuration
-GREEN_LED_PIN = 17  # GPIO 17 for grasshopper (safe)
-RED_LED_PIN = 27    # GPIO 27 for other insects (danger)
-BUZZER_PIN = 23     # GPIO 23 for buzzer alert
+GREEN_LED_PIN = 17  # GPIO 17 for other insects (safe)
+RED_LED_PIN = 27    # GPIO 27 for grasshopper (danger)
+BUZZER_PIN = 23     # GPIO 23 for buzzer alert when grasshopper is detected
 
 # Detection state
 detection_state = {
@@ -84,6 +84,27 @@ CONF_THRESHOLD_PERCENT = 70.0
 GUARDRAIL_ENABLED = True
 GUARDRAIL_MAX_AI_CONF_FOR_OVERRIDE = 97.0
 GUARDRAIL_MIN_HEURISTIC_NON_CONF = 60.0
+MIN_ACCEPT_CONFIDENCE_GRASSHOPPER = 85.0
+INSECT_LABEL_KEYWORDS = (
+    'insect',
+    'grasshopper',
+    'criquet',
+    'criquets',
+    'locust',
+    'orthoptera',
+    'aphid',
+    'beetle',
+    'moth',
+    'bug',
+    'fly',
+    'wasp',
+    'bee',
+    'ant',
+    'termite',
+    'mantis',
+    'cockroach',
+    'caterpillar'
+)
 
 
 def load_ai_model():
@@ -199,11 +220,48 @@ def is_grasshopper_label(insect_type):
     if normalized in other_aliases:
         return False
 
-    # Fallback: positive keywords only if no explicit negation signal.
-    if any(keyword in normalized for keyword in ('grasshopper', 'criquet', 'locust', 'orthoptera')):
+    # Strict mode: unknown labels are treated as non-grasshopper to reduce false positives.
+    return False
+
+
+def is_insect_like_label(insect_type):
+    """Return True only for labels that look like insects or known pest classes."""
+    if insect_type is None:
+        return False
+
+    raw_value = str(insect_type).strip().lower()
+    ascii_value = unicodedata.normalize('NFKD', raw_value).encode('ascii', 'ignore').decode('ascii')
+    normalized = ascii_value.replace('-', '_').replace(' ', '_')
+
+    if normalized in {'other_insect', 'other_insects'}:
         return True
 
-    return False
+    return any(keyword in normalized for keyword in INSECT_LABEL_KEYWORDS)
+
+
+def normalize_detection_type(insect_type):
+    """Keep only insect-like detections and map them to grasshopper or other_insect."""
+    if not is_insect_like_label(insect_type):
+        return None
+
+    return 'grasshopper' if is_grasshopper_label(insect_type) else 'other_insect'
+
+
+def should_accept_detection(insect_type, confidence):
+    """Accept only confirmed grasshopper detections so background and other insects are ignored."""
+    normalized_type = normalize_detection_type(insect_type)
+    if normalized_type is None:
+        return False, None
+
+    try:
+        confidence = float(confidence)
+    except (TypeError, ValueError):
+        return False, None
+
+    if normalized_type != 'grasshopper':
+        return False, normalized_type
+
+    return confidence >= MIN_ACCEPT_CONFIDENCE_GRASSHOPPER, normalized_type
 
 
 def analyze_uploaded_image(image):
@@ -311,19 +369,13 @@ def control_leds_and_buzzer(insect_type):
     """
     Control LEDs and Buzzer based on insect type
     Cricket detected: Red LED ON + Buzzer alert (3 beeps)
-    Other insect: Green LED ON + No sound
+    Anything else: no update
     """
     def led_buzzer_thread():
         try:
             if is_grasshopper_label(insect_type):
-                # Cricket detected - Green LED ON, Buzzer OFF
-                print("🦗 [ALERT] CRICKET DETECTED - GREEN LED ON")
-                GPIO.output(GREEN_LED_PIN, GPIO.HIGH)
-                GPIO.output(RED_LED_PIN, GPIO.LOW)
-                GPIO.output(BUZZER_PIN, GPIO.LOW)
-            else:
-                # Other insect detected - Red LED ON + Buzzer alert (3 beeps)
-                print("⚠️ [ALERT] OTHER INSECT DETECTED - RED LED ON + BUZZER ACTIVE")
+                # Confirmed grasshopper detected - Red LED ON + Buzzer alert (3 beeps)
+                print("🦗 [ALERT] CRICKET DETECTED - RED LED ON + BUZZER ACTIVE")
                 GPIO.output(GREEN_LED_PIN, GPIO.LOW)
                 GPIO.output(RED_LED_PIN, GPIO.HIGH)
                 
@@ -333,6 +385,8 @@ def control_leds_and_buzzer(insect_type):
                     time.sleep(0.3)  # 300ms beep
                     GPIO.output(BUZZER_PIN, GPIO.LOW)
                     time.sleep(0.2)  # 200ms silence
+            else:
+                return
             
             # Keep LED on for 3 seconds
             time.sleep(3)
@@ -353,22 +407,28 @@ def control_leds_and_buzzer(insect_type):
 
 def add_detection(insect_type, confidence, image_path=None):
     """Add a detection to history and trigger notifications"""
+    accepted, normalized_type = should_accept_detection(insect_type, confidence)
+    if not accepted or normalized_type is None:
+        return None
+
+    is_grasshopper = normalized_type == 'grasshopper'
     detection = {
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'type': insect_type,
+        'type': normalized_type,
         'confidence': confidence,
         'image': image_path,
-        'is_grasshopper': is_grasshopper_label(insect_type)
+        'is_grasshopper': is_grasshopper,
+        'label_color': 'green'
     }
     
     # Update state
     detection_state['last_detection'] = detection
-    detection_state['total_detections'] += 1
-    
-    if detection['is_grasshopper']:
+    # Requested behavior: keep totals only for confirmed grasshoppers.
+    if is_grasshopper:
+        detection_state['total_detections'] += 1
         detection_state['grasshopper_count'] += 1
-    else:
-        detection_state['other_insects_count'] += 1
+
+    # Other detections are ignored completely.
     
     # Add to history (keep last 100)
     detection_state['history'].insert(0, detection)
@@ -420,11 +480,31 @@ def receive_detection():
     data = request.json
     insect_type = data.get('type', 'unknown')
     confidence = data.get('confidence', 0)
+
+    try:
+        confidence = float(confidence)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    # Accept either 0-1 or 0-100 confidence from external scripts.
+    if 0.0 <= confidence <= 1.0:
+        confidence *= 100.0
+
+    accepted, normalized_type = should_accept_detection(insect_type, confidence)
+    if not accepted or normalized_type is None:
+        return jsonify({'success': True, 'ignored': True, 'reason': 'low_confidence_or_non_insect'})
     
-    # Add detection
-    detection = add_detection(insect_type, confidence)
+    # Add detection only for confirmed grasshopper detections.
+    detection = add_detection(normalized_type, confidence)
+    if detection is None:
+        return jsonify({'success': True, 'ignored': True, 'reason': 'low_confidence_or_non_insect'})
+    control_leds_and_buzzer(normalized_type)
     
-    return jsonify({'success': True, 'detection': detection})
+    return jsonify({
+        'success': True,
+        'detection': detection,
+        'label_color': 'green' if detection['is_grasshopper'] else 'red'
+    })
 
 
 @app.route('/api/detect-image', methods=['POST'])
@@ -451,15 +531,24 @@ def detect_image():
         heuristic_type, heuristic_conf = analyze_uploaded_image(image)
         heuristic_is_grasshopper = is_grasshopper_label(heuristic_type)
         
-        final_type = 'grasshopper' if heuristic_is_grasshopper else 'other_insect'
+        final_type = 'grasshopper' if heuristic_is_grasshopper else None
         final_confidence = float(heuristic_conf)
         decision_source = 'heuristic_shape_color'
         raw_type = heuristic_type
 
-        is_grasshopper = is_grasshopper_label(final_type)
-        display_label = 'criquet' if is_grasshopper else 'autres insectes'
+        if final_type is None:
+            return jsonify({'success': True, 'ignored': True, 'reason': 'no_grasshopper_found'})
+
+        is_grasshopper = True
+        display_label = 'criquet'
+
+        accepted, _ = should_accept_detection(final_type, final_confidence)
+        if not accepted:
+            return jsonify({'success': True, 'ignored': True, 'reason': 'low_confidence_or_non_insect'})
 
         detection = add_detection(final_type, final_confidence)
+        if detection is None:
+            return jsonify({'success': True, 'ignored': True, 'reason': 'low_confidence_or_non_insect'})
 
         # Trigger LED and buzzer alerts based on detection
         control_leds_and_buzzer(final_type)
@@ -469,6 +558,7 @@ def detect_image():
             'raw_type': raw_type,
             'final_type': final_type,
             'label': display_label,
+            'label_color': 'green',
             'is_grasshopper': is_grasshopper,
             'confidence': round(final_confidence, 1),
             'source': f"{decision_source}",
@@ -557,9 +647,9 @@ if __name__ == '__main__':
     print("="*60)
     print(f"🌐 Starting Flask server...")
     print(f"🔧 GPIO Mode: {'Real' if GPIO_AVAILABLE else 'Mock'}")
-    print(f"🟢 Green LED Pin: GPIO {GREEN_LED_PIN} (Grasshopper)")
-    print(f"🔴 Red LED Pin: GPIO {RED_LED_PIN} (Other Insects)")
-    print(f"🔊 Buzzer Pin: GPIO {BUZZER_PIN} (Alert for other insects)")
+    print(f"🟢 Green LED Pin: GPIO {GREEN_LED_PIN} (Other insects)")
+    print(f"🔴 Red LED Pin: GPIO {RED_LED_PIN} (Grasshopper)")
+    print(f"🔊 Buzzer Pin: GPIO {BUZZER_PIN} (Alert for grasshopper)")
     
     init_gpio()
     
